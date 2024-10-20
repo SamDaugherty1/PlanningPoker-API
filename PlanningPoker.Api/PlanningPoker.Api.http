@@ -1,0 +1,6 @@
+@PlanningPoker.Api_HostAddress = http://localhost:5030
+
+GET {{PlanningPoker.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
