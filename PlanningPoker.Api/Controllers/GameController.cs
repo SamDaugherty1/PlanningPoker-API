@@ -17,32 +17,32 @@ public class GameController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet]
-    public async Task<ActionResult<List<Player>>> GetPlayers()
+    [HttpGet("{gameId}/players")]
+    public async Task<ActionResult<List<Player>>> GetPlayers(string gameId)
     {
         try
         {
-            var players = await _estimationService.GetPlayers();
+            var players = await _estimationService.GetGamePlayers(gameId);
             return Ok(players);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting players");
+            _logger.LogError(ex, "Error getting players for game {GameId}", gameId);
             return StatusCode(500, "An error occurred while getting players");
         }
     }
 
-    [HttpPost("reset")]
-    public async Task<IActionResult> ResetGame()
+    [HttpPost("{gameId}/reset")]
+    public async Task<IActionResult> ResetGame(string gameId)
     {
         try
         {
-            await _estimationService.ResetCards();
+            await _estimationService.ResetCards(gameId);
             return Ok();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error resetting game");
+            _logger.LogError(ex, "Error resetting game {GameId}", gameId);
             return StatusCode(500, "An error occurred while resetting the game");
         }
     }

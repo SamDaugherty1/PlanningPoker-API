@@ -5,7 +5,6 @@ using PlanningPoker.Api.Cache;
 using PlanningPoker.Api.Exceptions;
 using PlanningPoker.Api.Models;
 using PlanningPoker.Api.Repositories;
-using PlanningPoker.Auth.Models;
 using Microsoft.Extensions.Logging;
 
 namespace PlanningPoker.Api.Services;
@@ -13,7 +12,8 @@ namespace PlanningPoker.Api.Services;
 public class EstimationService : IEstimationService
 {
     private readonly IEstimationRepository _estimationRepository;
-    private readonly List<Player> _players = new();
+    private readonly Dictionary<string, Game> _games = new();
+    private readonly Dictionary<string, Player> _players = new();
     private readonly object _lock = new();
     private readonly ILogger<EstimationService> _logger;
 
@@ -23,36 +23,33 @@ public class EstimationService : IEstimationService
         _logger = logger;
     }
 
-    public void JoinGame(string gameId, User user)
-    {
-        var game = _estimationRepository.GetGameById(gameId);
-
-        if (game.Players.ContainsKey(user.Id))
-        {
-            // already joined
-            return;
-        }
-
-        var player = new Player();
-
-        if (!game.Players.TryAdd(player.Id, player))
-        {
-            throw new Exception("Failed to join game");
-        }
-
-    }
-
-    public Game StartNewGame(Game game)
-    {
-       return _estimationRepository.StartNewGame(game);
-    }
-
-    public Task<List<Player>> GetPlayers()
+    public Task<Game> JoinGame(string gameId, Player player)
     {
         lock (_lock)
         {
-            _logger.LogInformation("Getting players. Current count: {Count}", _players.Count);
-            return Task.FromResult(_players.ToList());
+            // Create game if it doesn't exist
+            if (!_games.ContainsKey(gameId))
+            {
+                _games[gameId] = new Game
+                {
+                    Id = gameId,
+                    Players = new Dictionary<string, Player>()
+                };
+            }
+
+            var game = _games[gameId];
+
+            // Remove player from any other games
+            foreach (var g in _games.Values)
+            {
+                g.Players.Remove(player.Id);
+            }
+
+            // Add player to game
+            game.Players[player.Id] = player;
+            _players[player.ConnectionId] = player;
+
+            return Task.FromResult(game);
         }
     }
 
@@ -60,59 +57,7 @@ public class EstimationService : IEstimationService
     {
         lock (_lock)
         {
-            var player = _players.FirstOrDefault(p => p.ConnectionId == connectionId);
-            _logger.LogInformation("Getting player by connection ID: {ConnectionId}. Found: {Found}", 
-                connectionId, player != null);
-            return Task.FromResult(player);
-        }
-    }
-
-    public Task AddPlayer(Player player)
-    {
-        lock (_lock)
-        {
-            _logger.LogInformation("Adding player: {PlayerName} (ConnectionId: {ConnectionId})", 
-                player.Name, player.ConnectionId);
-            
-            // Remove any existing player with the same name or connection ID
-            var existingByName = _players.FirstOrDefault(p => p.Name == player.Name);
-            var existingByConnection = _players.FirstOrDefault(p => p.ConnectionId == player.ConnectionId);
-            
-            if (existingByName != null)
-            {
-                _logger.LogInformation("Removing existing player with same name: {PlayerName}", player.Name);
-                _players.Remove(existingByName);
-            }
-            
-            if (existingByConnection != null && existingByConnection != existingByName)
-            {
-                _logger.LogInformation("Removing existing player with same connection ID: {ConnectionId}", 
-                    player.ConnectionId);
-                _players.Remove(existingByConnection);
-            }
-            
-            _players.Add(player);
-            _logger.LogInformation("Player added. New count: {Count}", _players.Count);
-            return Task.CompletedTask;
-        }
-    }
-
-    public Task UpdatePlayer(Player player)
-    {
-        lock (_lock)
-        {
-            var existingPlayer = _players.FirstOrDefault(p => p.ConnectionId == player.ConnectionId);
-            if (existingPlayer != null)
-            {
-                _logger.LogInformation("Updating player {PlayerName} card to: {Card}", 
-                    player.Name, player.Card);
-                existingPlayer.Card = player.Card;
-            }
-            else
-            {
-                _logger.LogWarning("Player not found for update: {ConnectionId}", player.ConnectionId);
-            }
-            return Task.CompletedTask;
+            return Task.FromResult(_players.GetValueOrDefault(connectionId));
         }
     }
 
@@ -120,29 +65,73 @@ public class EstimationService : IEstimationService
     {
         lock (_lock)
         {
-            var player = _players.FirstOrDefault(p => p.ConnectionId == connectionId);
-            if (player != null)
+            if (_players.TryGetValue(connectionId, out var player))
             {
-                _logger.LogInformation("Removing player: {PlayerName} (ConnectionId: {ConnectionId})", 
-                    player.Name, connectionId);
-                _players.Remove(player);
-            }
-            else
-            {
-                _logger.LogWarning("Player not found for removal: {ConnectionId}", connectionId);
+                if (_games.TryGetValue(player.GameId, out var game))
+                {
+                    game.Players.Remove(player.Id);
+                    if (game.Players.Count == 0)
+                    {
+                        _games.Remove(game.Id);
+                    }
+                }
+                _players.Remove(connectionId);
             }
             return Task.CompletedTask;
         }
     }
 
-    public Task ResetCards()
+    public Task<List<Player>> GetGamePlayers(string gameId)
     {
         lock (_lock)
         {
-            _logger.LogInformation("Resetting cards for all players");
-            foreach (var player in _players)
+            if (_games.TryGetValue(gameId, out var game))
             {
-                player.Card = null;
+                return Task.FromResult(new List<Player>(game.Players.Values));
+            }
+            return Task.FromResult(new List<Player>());
+        }
+    }
+
+    public Task SetPlayerCard(string playerId, int? card)
+    {
+        lock (_lock)
+        {
+            foreach (var game in _games.Values)
+            {
+                if (game.Players.TryGetValue(playerId, out var player))
+                {
+                    player.Card = card;
+                    break;
+                }
+            }
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task ShowCards(string gameId)
+    {
+        lock (_lock)
+        {
+            if (_games.TryGetValue(gameId, out var game))
+            {
+                game.ShowCards = true;
+            }
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task ResetCards(string gameId)
+    {
+        lock (_lock)
+        {
+            if (_games.TryGetValue(gameId, out var game))
+            {
+                game.ShowCards = false;
+                foreach (var player in game.Players.Values)
+                {
+                    player.Card = null;
+                }
             }
             return Task.CompletedTask;
         }

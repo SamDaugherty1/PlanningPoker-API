@@ -18,7 +18,6 @@ public class PokerHub : Hub
     public override async Task OnConnectedAsync()
     {
         _logger.LogInformation("Client connected: {ConnectionId}", Context.ConnectionId);
-        // Send current players to new client
         await base.OnConnectedAsync();
     }
 
@@ -29,75 +28,83 @@ public class PokerHub : Hub
         if (player != null)
         {
             await _estimationService.RemovePlayerByConnectionId(Context.ConnectionId);
-            await NotifyPlayersUpdated();
-            await Clients.Others.SendAsync("playerLeft", player.Name);
+            await NotifyPlayersUpdated(player.GameId);
+            await Clients.Group(player.GameId).SendAsync("playerLeft", player.Name);
         }
         await base.OnDisconnectedAsync(exception);
     }
 
-    public async Task JoinGame(string playerName, bool viewOnly = false)
+    public async Task JoinGame(string gameId, string playerName, bool viewOnly = false)
     {
-        _logger.LogInformation("Player joining: {PlayerName} (ViewOnly: {ViewOnly})", playerName, viewOnly);
+        _logger.LogInformation("Player joining game {GameId}: {PlayerName} (ViewOnly: {ViewOnly})", gameId, playerName, viewOnly);
+        
         var player = new Player
         {
+            Id = Guid.NewGuid().ToString(),
             Name = playerName,
             ConnectionId = Context.ConnectionId,
+            GameId = gameId,
             ViewOnly = viewOnly
         };
 
-        await _estimationService.AddPlayer(player);
-        _logger.LogInformation("Player added, notifying all clients");
-        await NotifyPlayersUpdated();
-    }
-
-    public async Task LeaveGame()
-    {
-        _logger.LogInformation("Player leaving: {ConnectionId}", Context.ConnectionId);
-        var player = await _estimationService.GetPlayerByConnectionId(Context.ConnectionId);
-        if (player != null)
+        try
         {
-            await _estimationService.RemovePlayerByConnectionId(Context.ConnectionId);
-            await NotifyPlayersUpdated();
-            await Clients.Others.SendAsync("playerLeft", player.Name);
+            // This will create the game if it doesn't exist
+            await _estimationService.JoinGame(gameId, player);
+            
+            // Add to SignalR group for this game
+            await Groups.AddToGroupAsync(Context.ConnectionId, gameId);
+            
+            _logger.LogInformation("Player added to game {GameId}, notifying game clients", gameId);
+            await NotifyPlayersUpdated(gameId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error joining game {GameId}", gameId);
+            throw;
         }
     }
 
     public async Task SelectCard(int? card)
     {
         var player = await _estimationService.GetPlayerByConnectionId(Context.ConnectionId);
-        if (player != null)
+        if (player == null || player.ViewOnly)
         {
-            _logger.LogInformation("Player {PlayerName} selected card: {Card}", player.Name, card);
-            player.Card = card;
-            await _estimationService.UpdatePlayer(player);
-            await NotifyPlayersUpdated();
-            await Clients.All.SendAsync("cardSelected", player.Name, card);
+            return;
         }
+
+        await _estimationService.SetPlayerCard(player.Id, card);
+        await NotifyPlayersUpdated(player.GameId);
+        await Clients.Group(player.GameId).SendAsync("cardSelected", player.Name, card);
     }
 
     public async Task ShowCards()
     {
-        _logger.LogInformation("Showing cards");
-        await Clients.All.SendAsync("updateShowCards", true);
+        var player = await _estimationService.GetPlayerByConnectionId(Context.ConnectionId);
+        if (player == null)
+        {
+            return;
+        }
+
+        await _estimationService.ShowCards(player.GameId);
+        await Clients.Group(player.GameId).SendAsync("ShowCards");
     }
 
     public async Task ResetCards()
     {
-        _logger.LogInformation("Resetting cards");
-        await _estimationService.ResetCards();
-        await Clients.All.SendAsync("updateShowCards", false);
-        await NotifyPlayersUpdated();
+        var player = await _estimationService.GetPlayerByConnectionId(Context.ConnectionId);
+        if (player == null)
+        {
+            return;
+        }
+
+        await _estimationService.ResetCards(player.GameId);
+        await Clients.Group(player.GameId).SendAsync("ResetCards");
     }
 
-    private async Task NotifyPlayersUpdated()
+    private async Task NotifyPlayersUpdated(string gameId)
     {
-        var players = await _estimationService.GetPlayers();
-        _logger.LogInformation("Notifying players updated: {Count} players", players.Count);
-        foreach (var player in players)
-        {
-            _logger.LogInformation("Player in list: {Name} (ConnectionId: {ConnectionId}, Card: {Card})",
-                player.Name, player.ConnectionId, player.Card);
-        }
-        await Clients.All.SendAsync("updatePlayers", players);
+        var players = await _estimationService.GetGamePlayers(gameId);
+        await Clients.Group(gameId).SendAsync("UpdatePlayers", players);
     }
 }

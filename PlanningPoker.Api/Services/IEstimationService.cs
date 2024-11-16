@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using PlanningPoker.Api.Models;
 
@@ -6,10 +6,11 @@ namespace PlanningPoker.Api.Services;
 
 public interface IEstimationService
 {
-    Task<List<Player>> GetPlayers();
+    Task<Game> JoinGame(string gameId, Player player);
     Task<Player?> GetPlayerByConnectionId(string connectionId);
-    Task AddPlayer(Player player);
-    Task UpdatePlayer(Player player);
     Task RemovePlayerByConnectionId(string connectionId);
-    Task ResetCards();
+    Task<List<Player>> GetGamePlayers(string gameId);
+    Task SetPlayerCard(string playerId, int? card);
+    Task ShowCards(string gameId);
+    Task ResetCards(string gameId);
 }
