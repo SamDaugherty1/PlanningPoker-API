@@ -6,17 +6,25 @@ namespace PlanningPoker.Api.Repositories;
 
 public class EstimationRepository : IEstimationRepository
 {
+    private readonly IActiveGames _activeGames;
+
+    public EstimationRepository(IActiveGames activeGames)
+    {
+        _activeGames = activeGames;
+    }
+
     public Game GetGameById(string gameId)
     {
-        return ActiveGames.GetGame(gameId);
+        return _activeGames.GetGame(gameId);
     }
 
     public Game StartNewGame(Game game)
     {
-        if (ActiveGames.Games.ContainsKey(game.Id))
+        if (_activeGames.GameExists(game.Id))
             throw new Exception("Game already exists");
         
-        ActiveGames.Games.TryAdd(game.Id, game);
+        if (!_activeGames.TryAddGame(game.Id, game))
+            throw new Exception("Failed to create game");
 
         return game;
     }

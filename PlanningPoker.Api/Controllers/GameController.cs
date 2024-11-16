@@ -1,34 +1,49 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.Api.Models;
 using PlanningPoker.Api.Services;
 
-namespace PlanningPoker.Api.Controllers
+namespace PlanningPoker.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class GameController : ControllerBase
 {
-    [Route("Api/[controller]")]
-    [ApiController]
-    public class GameController : ControllerBase
+    private readonly IEstimationService _estimationService;
+    private readonly ILogger<GameController> _logger;
+
+    public GameController(IEstimationService estimationService, ILogger<GameController> logger)
     {
-        private readonly IEstimationService _estimationService;
-        private readonly ILogger _logger;
-        public GameController(ILogger logger, IEstimationService estimationService)
+        _estimationService = estimationService;
+        _logger = logger;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<List<Player>>> GetPlayers()
+    {
+        try
         {
-            _logger = logger;
-            _estimationService = estimationService;
+            var players = await _estimationService.GetPlayers();
+            return Ok(players);
         }
-        [HttpPost]
-        [Route("new")]
-        public ActionResult StartNewGame([FromBody] Game game) 
+        catch (Exception ex)
         {
-            try
-            {
-                return Ok(_estimationService.StartNewGame(game));
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Unkown error");
-                return BadRequest();
-            }
-        }   
+            _logger.LogError(ex, "Error getting players");
+            return StatusCode(500, "An error occurred while getting players");
+        }
+    }
+
+    [HttpPost("reset")]
+    public async Task<IActionResult> ResetGame()
+    {
+        try
+        {
+            await _estimationService.ResetCards();
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting game");
+            return StatusCode(500, "An error occurred while resetting the game");
+        }
     }
 }
