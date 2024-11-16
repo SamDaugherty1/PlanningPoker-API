@@ -12,5 +12,5 @@ public class Game
     public string Id { get; set; }
     public string Name { get; set; }
 
-    public readonly ConcurrentDictionary<string, Player> Players = new();
+    internal readonly ConcurrentDictionary<string, Player> Players = new();
 }

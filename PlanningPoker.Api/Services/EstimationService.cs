@@ -32,4 +32,9 @@ public class EstimationService : IEstimationService
         }
 
     }
+
+    public Game StartNewGame(Game game)
+    {
+       return _estimationRepository.StartNewGame(game);
+    }
 }
