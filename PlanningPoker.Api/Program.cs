@@ -21,7 +21,7 @@ builder.Services.AddCors(options =>
 // Register services
 builder.Services.AddSingleton<IActiveGames, ActiveGames>();
 builder.Services.AddSingleton<IEstimationRepository, EstimationRepository>();
-builder.Services.AddScoped<IEstimationService, EstimationService>();
+builder.Services.AddSingleton<IEstimationService, EstimationService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 
 // Register SignalR hub

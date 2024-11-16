@@ -20,9 +20,6 @@ public class PokerHub : Hub
         _logger.LogInformation("Client connected: {ConnectionId}", Context.ConnectionId);
         // Send current players to new client
         await base.OnConnectedAsync();
-
-        var players = await _estimationService.GetPlayers();
-        await Clients.Caller.SendAsync("updatePlayers", players);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
