@@ -19,8 +19,10 @@ public class PokerHub : Hub
     {
         _logger.LogInformation("Client connected: {ConnectionId}", Context.ConnectionId);
         // Send current players to new client
-        await NotifyPlayersUpdated();
         await base.OnConnectedAsync();
+
+        var players = await _estimationService.GetPlayers();
+        await Clients.Caller.SendAsync("updatePlayers", players);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -47,9 +49,7 @@ public class PokerHub : Hub
         };
 
         await _estimationService.AddPlayer(player);
-        // First notify others about the new player
-        await Clients.Others.SendAsync("playerJoined", player);
-        // Then send the full player list to everyone
+        _logger.LogInformation("Player added, notifying all clients");
         await NotifyPlayersUpdated();
     }
 
