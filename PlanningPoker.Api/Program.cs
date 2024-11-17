@@ -10,12 +10,24 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenApi at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("development",
-        builder => builder
-            .WithOrigins("http://localhost:4200")
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials());
+    if (builder.Environment.IsDevelopment())
+    {
+        options.AddPolicy("CorsPolicy",
+            builder => builder
+                .SetIsOriginAllowed(_ => true)
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials());
+    }
+    else
+    {
+        options.AddPolicy("CorsPolicy",
+            builder => builder
+                .WithOrigins("https://thankful-pebble-01b375c10.5.azurestaticapps.net")
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials());
+    }
 });
 
 // Register services
@@ -41,14 +53,14 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseCors("development");
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// app.UseHttpsRedirection();
-
 app.UseRouting();
+
+// Apply CORS before routing endpoints
+app.UseCors("CorsPolicy");
 
 app.MapHub<PokerHub>("api/connect").AllowAnonymous();
 
