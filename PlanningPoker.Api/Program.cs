@@ -11,7 +11,6 @@ var allowedOrigins = builder.Environment.IsDevelopment()
     : new[] { "https://thankful-pebble-01b375c10.5.azurestaticapps.net" };
 
 // Add services to the container.
-// Learn more about configuring Swagger/OpenApi at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy",
@@ -19,7 +18,8 @@ builder.Services.AddCors(options =>
             .WithOrigins(allowedOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials());
+            .AllowCredentials()
+            .SetIsOriginAllowed(_ => true)); // This is needed for SignalR
 });
 
 // Register services
@@ -42,7 +42,10 @@ builder.Services.AddControllers();
 
 var app = builder.Build();
 
-// Always use CORS in all environments
+// Configure the HTTP request pipeline
+app.UseRouting();
+
+// Always use CORS in all environments - must be after UseRouting and before UseEndpoints
 app.UseCors("CorsPolicy");
 
 if (app.Environment.IsDevelopment())
@@ -51,10 +54,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseRouting();
-
-app.MapHub<PokerHub>("api/connect").AllowAnonymous();
-
-app.MapControllers();
+// Map endpoints - must be after UseCors
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapHub<PokerHub>("api/connect").AllowAnonymous();
+    endpoints.MapControllers();
+});
 
 app.Run();
