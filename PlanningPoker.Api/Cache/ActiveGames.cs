@@ -5,17 +5,40 @@ using PlanningPoker.Api.Models;
 
 namespace PlanningPoker.Api.Cache;
 
-public static class ActiveGames
+public interface IActiveGames
 {
-    public static readonly ConcurrentDictionary<string, Game> Games = new();
+    Game GetGame(string gameId);
+    bool TryAddGame(string gameId, Game game);
+    bool TryGetGame(string gameId, out Game game);
+    bool GameExists(string gameId);
+}
 
-    public static Game GetGame(string gameId)
+public class ActiveGames : IActiveGames
+{
+    private readonly ConcurrentDictionary<string, Game> _games = new();
+
+    public Game GetGame(string gameId)
     {
-        if (!Games.TryGetValue(gameId, out var game))
+        if (!_games.TryGetValue(gameId, out var game))
         {
             throw new NoActiveGameException();
         }
 
         return game;
+    }
+
+    public bool TryAddGame(string gameId, Game game)
+    {
+        return _games.TryAdd(gameId, game);
+    }
+
+    public bool TryGetGame(string gameId, out Game game)
+    {
+        return _games.TryGetValue(gameId, out game);
+    }
+
+    public bool GameExists(string gameId)
+    {
+        return _games.ContainsKey(gameId);
     }
 }
