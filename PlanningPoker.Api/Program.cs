@@ -6,13 +6,17 @@ using PlanningPoker.Api.Cache;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var allowedOrigins = builder.Environment.IsDevelopment() 
+    ? new[] { "http://localhost:4200", "https://thankful-pebble-01b375c10.5.azurestaticapps.net" }
+    : new[] { "https://thankful-pebble-01b375c10.5.azurestaticapps.net" };
+
 // Add services to the container.
 // Learn more about configuring Swagger/OpenApi at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("development",
+    options.AddPolicy("CorsPolicy",
         builder => builder
-            .WithOrigins("http://localhost:4200")
+            .WithOrigins(allowedOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
@@ -36,17 +40,16 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 
-// Configure the HTTP request pipeline.
 var app = builder.Build();
+
+// Always use CORS in all environments
+app.UseCors("CorsPolicy");
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseCors("development");
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-// app.UseHttpsRedirection();
 
 app.UseRouting();
 
