@@ -3,6 +3,7 @@ using PlanningPoker.Api.Services;
 using PlanningPoker.Api.Repositories;
 using PlanningPoker.Auth.Services;
 using PlanningPoker.Api.Cache;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +34,27 @@ builder.Services.AddCors(options =>
 // Register services
 builder.Services.AddSingleton<IActiveGames, ActiveGames>();
 builder.Services.AddSingleton<IEstimationRepository, EstimationRepository>();
-builder.Services.AddSingleton<IEstimationService, EstimationService>();
+
+// Use mock service in development
+bool useMockPlayers = builder.Environment.IsDevelopment();
+
+// Create logger for startup
+var logger = LoggerFactory.Create(config => 
+{
+    config.AddConsole();
+}).CreateLogger("Program");
+
+if (useMockPlayers)
+{
+    builder.Services.AddSingleton<IEstimationService, MockEstimationService>();
+    logger.LogInformation("Using MockEstimationService for local development");
+}
+else
+{
+    builder.Services.AddSingleton<IEstimationService, EstimationService>();
+    logger.LogInformation("Using real EstimationService");
+}
+
 builder.Services.AddScoped<ITokenService, TokenService>();
 
 // Register SignalR hub
