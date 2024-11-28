@@ -23,7 +23,10 @@ builder.Services.AddCors(options =>
     {
         options.AddPolicy("CorsPolicy",
             builder => builder
-                .WithOrigins("https://thankful-pebble-01b375c10.5.azurestaticapps.net")
+                .WithOrigins(
+                    "https://thankful-pebble-01b375c10.5.azurestaticapps.net",
+                    "https://planningpoker.agiledevelopers.org"
+                )
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials());
