@@ -117,12 +117,12 @@ public class MockEstimationService : IEstimationService
         {
             if (_games.TryGetValue(gameId, out var game))
             {
+                game.ShowCards = false;
                 foreach (var player in game.Players.Values)
                 {
                     player.Card = null;
                 }
-                game.ShowCards = false;
-                _logger.LogInformation("Cards reset in game {GameId}", gameId);
+                game.LastActivity = DateTime.UtcNow;
             }
             return Task.CompletedTask;
         }
@@ -155,6 +155,35 @@ public class MockEstimationService : IEstimationService
                 _logger.LogInformation("Cards revealed in game {GameId}", gameId);
             }
             return Task.CompletedTask;
+        }
+    }
+
+    public IEnumerable<string> GetInactiveGames(TimeSpan timeout)
+    {
+        lock (_lock)
+        {
+            var cutoffTime = DateTime.UtcNow.Subtract(timeout);
+            return _games
+                .Where(g => g.Value.Players.Count == 0 && g.Value.LastActivity < cutoffTime)
+                .Select(g => g.Key)
+                .ToList();
+        }
+    }
+
+    public void RemoveGame(string gameId)
+    {
+        lock (_lock)
+        {
+            if (_games.TryGetValue(gameId, out var game))
+            {
+                // Remove all players in this game from the players dictionary
+                foreach (var player in game.Players.Values)
+                {
+                    _players.Remove(player.ConnectionId);
+                }
+                _games.Remove(gameId);
+                _logger.LogInformation("Removed game {GameId}", gameId);
+            }
         }
     }
 }

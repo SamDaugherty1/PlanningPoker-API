@@ -11,16 +11,51 @@ namespace PlanningPoker.Api.Services;
 
 public class EstimationService : IEstimationService
 {
-    private readonly IEstimationRepository _estimationRepository;
     private readonly Dictionary<string, Game> _games = new();
     private readonly Dictionary<string, Player> _players = new();
     private readonly object _lock = new();
     private readonly ILogger<EstimationService> _logger;
 
-    public EstimationService(IEstimationRepository estimationRepository, ILogger<EstimationService> logger)
+    public EstimationService(ILogger<EstimationService> logger)
     {
-        _estimationRepository = estimationRepository;
         _logger = logger;
+    }
+
+    private void UpdateGameActivity(string gameId)
+    {
+        if (_games.TryGetValue(gameId, out var game))
+        {
+            game.LastActivity = DateTime.UtcNow;
+        }
+    }
+
+    public IEnumerable<string> GetInactiveGames(TimeSpan timeout)
+    {
+        lock (_lock)
+        {
+            var cutoffTime = DateTime.UtcNow.Subtract(timeout);
+            return _games
+                .Where(g => g.Value.Players.Count == 0 && g.Value.LastActivity < cutoffTime)
+                .Select(g => g.Key)
+                .ToList();
+        }
+    }
+
+    public void RemoveGame(string gameId)
+    {
+        lock (_lock)
+        {
+            if (_games.TryGetValue(gameId, out var game))
+            {
+                // Remove all players in this game from the players dictionary
+                foreach (var player in game.Players.Values)
+                {
+                    _players.Remove(player.ConnectionId);
+                }
+                _games.Remove(gameId);
+                _logger.LogInformation("Removed game {GameId}", gameId);
+            }
+        }
     }
 
     public Task<Game> JoinGame(string gameId, Player player)
@@ -48,16 +83,10 @@ public class EstimationService : IEstimationService
             // Add player to game
             game.Players[player.Id] = player;
             _players[player.ConnectionId] = player;
+            
+            UpdateGameActivity(gameId);
 
             return Task.FromResult(game);
-        }
-    }
-
-    public Task<Player?> GetPlayerByConnectionId(string connectionId)
-    {
-        lock (_lock)
-        {
-            return Task.FromResult(_players.GetValueOrDefault(connectionId));
         }
     }
 
@@ -70,10 +99,7 @@ public class EstimationService : IEstimationService
                 if (_games.TryGetValue(player.GameId, out var game))
                 {
                     game.Players.Remove(player.Id);
-                    if (game.Players.Count == 0)
-                    {
-                        _games.Remove(game.Id);
-                    }
+                    UpdateGameActivity(player.GameId);
                 }
                 _players.Remove(connectionId);
             }
@@ -85,11 +111,24 @@ public class EstimationService : IEstimationService
     {
         lock (_lock)
         {
+            UpdateGameActivity(gameId);
             if (_games.TryGetValue(gameId, out var game))
             {
                 return Task.FromResult(new List<Player>(game.Players.Values));
             }
             return Task.FromResult(new List<Player>());
+        }
+    }
+
+    public Task<Player?> GetPlayerByConnectionId(string connectionId)
+    {
+        lock (_lock)
+        {
+            if (_players.TryGetValue(connectionId, out var player))
+            {
+                UpdateGameActivity(player.GameId);
+            }
+            return Task.FromResult(_players.GetValueOrDefault(connectionId));
         }
     }
 
@@ -102,6 +141,7 @@ public class EstimationService : IEstimationService
                 if (game.Players.TryGetValue(playerId, out var player))
                 {
                     player.Card = card;
+                    UpdateGameActivity(game.Id);
                     break;
                 }
             }
@@ -116,6 +156,7 @@ public class EstimationService : IEstimationService
             if (_games.TryGetValue(gameId, out var game))
             {
                 game.ShowCards = true;
+                UpdateGameActivity(gameId);
             }
             return Task.CompletedTask;
         }
@@ -132,6 +173,7 @@ public class EstimationService : IEstimationService
                 {
                     player.Card = null;
                 }
+                UpdateGameActivity(gameId);
             }
             return Task.CompletedTask;
         }

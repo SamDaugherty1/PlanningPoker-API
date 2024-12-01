@@ -37,6 +37,7 @@ builder.Services.AddCors(options =>
 // Register services
 builder.Services.AddSingleton<IActiveGames, ActiveGames>();
 builder.Services.AddSingleton<IEstimationRepository, EstimationRepository>();
+builder.Services.AddHostedService<GameCleanupService>();
 
 // Use mock service in development
 bool useMockPlayers = builder.Environment.IsDevelopment();

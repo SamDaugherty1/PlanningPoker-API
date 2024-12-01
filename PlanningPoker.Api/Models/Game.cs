@@ -9,4 +9,5 @@ public class Game
     public string Name { get; set; } = string.Empty;
     public Dictionary<string, Player> Players { get; set; } = new();
     public bool ShowCards { get; set; }
+    public DateTime LastActivity { get; set; } = DateTime.UtcNow;
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using PlanningPoker.Api.Models;
@@ -13,4 +14,6 @@ public interface IEstimationService
     Task SetPlayerCard(string playerId, int? card);
     Task ShowCards(string gameId);
     Task ResetCards(string gameId);
+    IEnumerable<string> GetInactiveGames(TimeSpan timeout);
+    void RemoveGame(string gameId);
 }
