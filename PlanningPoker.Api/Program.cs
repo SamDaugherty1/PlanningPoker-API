@@ -38,27 +38,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<IActiveGames, ActiveGames>();
 builder.Services.AddSingleton<IEstimationRepository, EstimationRepository>();
 builder.Services.AddHostedService<GameCleanupService>();
-
-// Use mock service in development
-bool useMockPlayers = builder.Environment.IsDevelopment();
-
-// Create logger for startup
-var logger = LoggerFactory.Create(config => 
-{
-    config.AddConsole();
-}).CreateLogger("Program");
-
-if (useMockPlayers)
-{
-    builder.Services.AddSingleton<IEstimationService, MockEstimationService>();
-    logger.LogInformation("Using MockEstimationService for local development");
-}
-else
-{
-    builder.Services.AddSingleton<IEstimationService, EstimationService>();
-    logger.LogInformation("Using real EstimationService");
-}
-
+builder.Services.AddSingleton<IEstimationService, EstimationService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 
 // Register SignalR hub
